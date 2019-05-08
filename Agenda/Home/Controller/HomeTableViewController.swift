@@ -78,8 +78,28 @@ class HomeTableViewController: UITableViewController, UISearchBarDelegate, NSFet
                     guard let telefoneAluno = alunoSelecionado.telefone else { return }
                     if let url = URL(string: "tel:// \(telefoneAluno)"), UIApplication.shared.canOpenURL(url) {
                         UIApplication.shared.open(url, options: [:], completionHandler: nil)
-                        
                     }
+                    break
+                case .waze:
+                    if let url = URL(string: "waze://"), UIApplication.shared.canOpenURL(url) {
+                        guard let enderecoAluno = alunoSelecionado.endereco else { return }
+                        Localizacao().converterEnderecoEmCoordenadas(endereco: enderecoAluno, local: { (localizacaoEncontrada) in
+                            let latitude = String(describing: localizacaoEncontrada.location!.coordinate.latitude)
+                            let longitude = String(describing: localizacaoEncontrada.location!.coordinate.longitude)
+                            let url = URL(string: "waze://?ll=\(latitude),\(longitude)&navigate=yes")
+                            UIApplication.shared.open(url!, options: [:], completionHandler: nil)
+                        })
+                    }else {
+                        UIApplication.shared.open(URL(string: "http://itunes.apple.com/us/app/id323229106")!, options: [:], completionHandler: nil) 
+                    }
+                    break
+                case .mapa:
+                    let mapa = UIStoryboard(name: "Main", bundle: nil).instantiateViewController(withIdentifier: "mapa") as! MapaViewController
+                    mapa.aluno = alunoSelecionado
+                    if let navigation = self.navigationController{
+                        navigation.pushViewController(mapa, animated: true)
+                    }
+                    break
                 }
                 
             })
@@ -137,5 +157,7 @@ class HomeTableViewController: UITableViewController, UISearchBarDelegate, NSFet
         default:
             tableView.reloadData()
         }
+    }
+    @IBAction func buttonCalculaMedia(_ sender: UIBarButtonItem) {
     }
 }
