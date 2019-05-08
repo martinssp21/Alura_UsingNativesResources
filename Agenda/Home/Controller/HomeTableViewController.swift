@@ -46,11 +46,14 @@ class HomeTableViewController: UITableViewController, UISearchBarDelegate, NSFet
         self.navigationItem.searchController = searchController
     }
 
-    func recuperaAluno(){
+    func recuperaAluno(filtro: String = ""){
         let pesquisaAluno: NSFetchRequest<Aluno> = Aluno.fetchRequest()
         let ordenaPorNome = NSSortDescriptor(key: "nome", ascending: true)
         pesquisaAluno.sortDescriptors = [ordenaPorNome]
         
+        if (!filtro.isEmpty){
+            pesquisaAluno.predicate = filtrarAluno(filtro)
+        }
         
         gerenciadorDeResultados = NSFetchedResultsController(fetchRequest: pesquisaAluno, managedObjectContext: contexto, sectionNameKeyPath: nil, cacheName: nil)
         
@@ -107,6 +110,10 @@ class HomeTableViewController: UITableViewController, UISearchBarDelegate, NSFet
         }
     }
     
+    func filtrarAluno(_ filtro: String) -> NSPredicate{
+        return NSPredicate(format: "nome CONTAINS %@", filtro)
+    }
+    
     // MARK: - Table view data source
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -129,13 +136,20 @@ class HomeTableViewController: UITableViewController, UISearchBarDelegate, NSFet
 
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
-            guard let alunoSelecionado = gerenciadorDeResultados?.fetchedObjects![indexPath.row] else { return }
-            contexto.delete(alunoSelecionado)
-            do{
-                try contexto.save()
-            } catch{
-                print(error.localizedDescription)
+            AutenticacaoLocal().autorizaUsuario { (autenticado) in
+                if autenticado {
+                    DispatchQueue.main.async {
+                        guard let alunoSelecionado = self.gerenciadorDeResultados?.fetchedObjects![indexPath.row] else { return }
+                        self.contexto.delete(alunoSelecionado)
+                        do{
+                            try self.contexto.save()
+                        } catch{
+                            print(error.localizedDescription)
+                        }
+                    }
+                }
             }
+
         } else if editingStyle == .insert {
             // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
         }    
@@ -159,5 +173,21 @@ class HomeTableViewController: UITableViewController, UISearchBarDelegate, NSFet
         }
     }
     @IBAction func buttonCalculaMedia(_ sender: UIBarButtonItem) {
+    }
+    
+    @IBAction func buttonLocalizacaoGeral(_ sender: UIBarButtonItem) {
+        let mapa = UIStoryboard(name: "Main", bundle: nil).instantiateViewController(withIdentifier: "mapa") as! MapaViewController
+        navigationController?.pushViewController(mapa, animated: true)
+    }
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        guard let nomeDoAluno = searchBar.text else { return}
+        recuperaAluno(filtro: nomeDoAluno)
+        tableView.reloadData()
+    }
+    
+    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
+        recuperaAluno()
+        tableView.reloadData()
     }
 }
