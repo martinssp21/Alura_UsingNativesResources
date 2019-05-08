@@ -7,21 +7,38 @@
 //
 
 import UIKit
+import CoreData
 
-class HomeTableViewController: UITableViewController, UISearchBarDelegate {
+class HomeTableViewController: UITableViewController, UISearchBarDelegate, NSFetchedResultsControllerDelegate {
     
     //MARK: - Variáveis
     
     let searchController = UISearchController(searchResultsController: nil)
+    var gerenciadorDeResultados: NSFetchedResultsController<Aluno>?
+    
+    var contexto: NSManagedObjectContext{
+        let appDelegate = UIApplication.shared.delegate as! AppDelegate
+        return appDelegate.persistentContainer.viewContext
+    }
+    
+    var alunoViewController: AlunoViewController?
+    var mensagem = Mensagem()
     
     // MARK: - View Lifecycle
 
     override func viewDidLoad() {
         super.viewDidLoad()
         self.configuraSearch()
+        self.recuperaAluno()
     }
     
     // MARK: - Métodos
+    
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        if(segue.identifier == "editar"){
+            alunoViewController = segue.destination as? AlunoViewController
+        }
+    }
     
     func configuraSearch() {
         self.searchController.searchBar.delegate = self
@@ -29,25 +46,96 @@ class HomeTableViewController: UITableViewController, UISearchBarDelegate {
         self.navigationItem.searchController = searchController
     }
 
+    func recuperaAluno(){
+        let pesquisaAluno: NSFetchRequest<Aluno> = Aluno.fetchRequest()
+        let ordenaPorNome = NSSortDescriptor(key: "nome", ascending: true)
+        pesquisaAluno.sortDescriptors = [ordenaPorNome]
+        
+        
+        gerenciadorDeResultados = NSFetchedResultsController(fetchRequest: pesquisaAluno, managedObjectContext: contexto, sectionNameKeyPath: nil, cacheName: nil)
+        
+        gerenciadorDeResultados?.delegate = self
+        
+        do {
+            try gerenciadorDeResultados?.performFetch()
+        } catch  {
+            print(error.localizedDescription)
+        }
+    }
+    
+    @objc func abrirActionSheet(_ longPress: UILongPressGestureRecognizer){
+        if(longPress.state == .began){
+            guard let alunoSelecionado = gerenciadorDeResultados?.fetchedObjects?[(longPress.view?.tag)!] else {return }
+            let menu = MenuDeOpcoesDoAluno().configuraMenuDeOpcoesDoAluno (completion: { (opcao) in
+                switch opcao{
+                case .sms:
+                    if let componenteMensagem = self.mensagem.configuraSMS(aluno: alunoSelecionado) {
+                        componenteMensagem.messageComposeDelegate = self.mensagem
+                        self.present(componenteMensagem, animated: true, completion: nil)
+                    }
+                    break
+                case .ligacao:
+                    guard let telefoneAluno = alunoSelecionado.telefone else { return }
+                    if let url = URL(string: "tel:// \(telefoneAluno)"), UIApplication.shared.canOpenURL(url) {
+                        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                        
+                    }
+                }
+                
+            })
+            self.present(menu, animated: true, completion: nil)
+        }
+    }
+    
     // MARK: - Table view data source
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 0
+        guard let contadorListaDeAlunos = gerenciadorDeResultados?.fetchedObjects?.count else { return 0 }
+        return contadorListaDeAlunos
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "celula-aluno", for: indexPath) as! HomeTableViewCell
-
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(abrirActionSheet))
+        guard let aluno = gerenciadorDeResultados?.fetchedObjects![indexPath.row] else { return cell }
+        cell.configurarCelula(aluno)
+        cell.addGestureRecognizer(longPress)
         return cell
+    }
+    
+    override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        return 85
     }
 
     override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
-            // Delete the row from the data source
-            tableView.deleteRows(at: [indexPath], with: .fade)
+            guard let alunoSelecionado = gerenciadorDeResultados?.fetchedObjects![indexPath.row] else { return }
+            contexto.delete(alunoSelecionado)
+            do{
+                try contexto.save()
+            } catch{
+                print(error.localizedDescription)
+            }
         } else if editingStyle == .insert {
             // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
         }    
     }
-
+    
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard let alunoSelecionado = gerenciadorDeResultados?.fetchedObjects![indexPath.row] else { return }
+        alunoViewController?.aluno = alunoSelecionado
+    }
+    
+    //MARK: - FetchedResultsControllerDelegate
+    func controller(_ controller: NSFetchedResultsController<NSFetchRequestResult>, didChange anObject: Any, at indexPath: IndexPath?, for type: NSFetchedResultsChangeType, newIndexPath: IndexPath?) {
+        switch type {
+        case .delete:
+            guard let indexPath = indexPath else { return }
+            
+            tableView.deleteRows(at: [indexPath], with: .fade)
+            break
+        default:
+            tableView.reloadData()
+        }
+    }
 }

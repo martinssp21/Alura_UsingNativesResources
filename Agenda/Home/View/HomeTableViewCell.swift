@@ -17,13 +17,19 @@ class HomeTableViewCell: UITableViewCell {
 
     override func awakeFromNib() {
         super.awakeFromNib()
-        // Initialization code
     }
 
     override func setSelected(_ selected: Bool, animated: Bool) {
         super.setSelected(selected, animated: animated)
-
-        // Configure the view for the selected state
+    }
+    
+    func configurarCelula(_ aluno: Aluno){
+        self.labelNomeDoAluno.text = aluno.nome
+        self.imageAluno.layer.cornerRadius = self.imageAluno.frame.width / 2
+        self.imageAluno.layer.masksToBounds = true
+        if let imagemDoAluno = aluno.foto as? UIImage{
+            self.imageAluno.image = imagemDoAluno
+        }
     }
 
 }
